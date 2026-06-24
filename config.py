@@ -1,18 +1,14 @@
-# Configuration updated by Team Member
+# Configuration updated by Wisam Alam and Team Member
 # Date: 25-06-2026
-# Change: Updated database host and added health check interval
+# Change: Resolved merge conflict by keeping sakila-db-server as MYSQL_HOST
+# and adding both CONNECTION_TIMEOUT and HEALTH_CHECK_INTERVAL.
 
-# Name: Abdul Raffay Qasim
-# Name: Team Member
-# Date: 2026-04-23
-# Minor improvement after PR review
-# Added after review feedback
 import os
 
+
 class Config:
-    """Base configuration class for the Sakila Flask application.
-    Handles database connection strings and system timeouts.
-    """
+    """Base configuration class for the Sakila Flask application."""
+
     MYSQL_HOST = os.environ.get('MYSQL_HOST', 'sakila-db-server')
     MYSQL_USER = os.environ.get('MYSQL_USER', 'root')
     MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD', 'admin')
@@ -21,29 +17,16 @@ class Config:
     CONNECTION_TIMEOUT = int(os.environ.get('CONNECTION_TIMEOUT', '30'))
     HEALTH_CHECK_INTERVAL = int(os.environ.get('HEALTH_CHECK_INTERVAL', '10'))
 
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-here-change-this-in-production')
-#Author:Urwah Taj
-#Date: 2026-04-23
-# Purpose: Database configuration for Sakila Flask Application
-
-# Author: Team Member = Aliyah Cheema
-# Date: 2026-04-23
-# Purpose: Health check configuration merged from feature/add-healthcheck
+    SECRET_KEY = os.environ.get(
+        'SECRET_KEY',
+        'your-secret-key-here-change-this-in-production'
+    )
 
 
-import os
-
-MYSQL_HOST = os.environ.get('MYSQL_HOST', 'sakila-db-server')
-MYSQL_USER = os.environ.get('MYSQL_USER', 'root')
-MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD', '')
-MYSQL_DB = os.environ.get('MYSQL_DB', 'sakila')
-
-try:
-    CONNECTION_TIMEOUT = int(os.environ.get('CONNECTION_TIMEOUT', '30'))
-except ValueError:
-    CONNECTION_TIMEOUT = 30
-
-try:
-    HEALTH_CHECK_INTERVAL = int(os.environ.get('HEALTH_CHECK_INTERVAL', '10'))
-except ValueError:
-    HEALTH_CHECK_INTERVAL = 10
+MYSQL_HOST = Config.MYSQL_HOST
+MYSQL_USER = Config.MYSQL_USER
+MYSQL_PASSWORD = Config.MYSQL_PASSWORD
+MYSQL_DB = Config.MYSQL_DB
+CONNECTION_TIMEOUT = Config.CONNECTION_TIMEOUT
+HEALTH_CHECK_INTERVAL = Config.HEALTH_CHECK_INTERVAL
+SECRET_KEY = Config.SECRET_KEY
