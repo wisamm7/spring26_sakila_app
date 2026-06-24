@@ -30,3 +30,11 @@ MYSQL_DB = Config.MYSQL_DB
 CONNECTION_TIMEOUT = Config.CONNECTION_TIMEOUT
 HEALTH_CHECK_INTERVAL = Config.HEALTH_CHECK_INTERVAL
 SECRET_KEY = Config.SECRET_KEY
+
+
+def get_timeout_settings():
+    """Return validated timeout settings for database and health checks."""
+    return {
+        "connection_timeout": CONNECTION_TIMEOUT,
+        "health_check_interval": HEALTH_CHECK_INTERVAL,
+    }
