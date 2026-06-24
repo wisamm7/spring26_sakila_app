@@ -1,31 +1,21 @@
-# C3 Pipeline Debugging Analysis
+# Broken Pipeline Debugging Analysis
 
-## Error 1: Wrong branch syntax
-Line: on.push.branches  
-Problem: branches is written as a single scalar value `main`.  
-Why it fails/causes issue: It is not the recommended GitHub Actions branch filter format and can cause confusion or trigger issues.  
-Fix: Use `branches: [main]`.
+## Error 1: Invalid runner label
+Broken: runs-on: ubuntu
+Fix: runs-on: ubuntu-latest
 
-## Error 2: Invalid runner label
-Line: `runs-on: ubuntu`  
-Problem: GitHub-hosted runner label `ubuntu` is invalid.  
-Why it fails: GitHub Actions cannot find a runner with this label.  
-Fix: Use `runs-on: ubuntu-latest`.
+## Error 2: No MySQL service
+Broken: tests run without MySQL.
+Fix: add mysql:8.0 service.
 
-## Error 3: Test job has no MySQL service
-Line: test job  
-Problem: The tests need Sakila MySQL database, but no MySQL service is configured.  
-Why it fails: Database connection tests cannot connect to MySQL.  
-Fix: Add a MySQL service container with MYSQL_ROOT_PASSWORD and MYSQL_DATABASE.
+## Error 3: No Sakila database import
+Broken: Sakila schema/data is not loaded.
+Fix: download and import sakila-schema.sql and sakila-data.sql.
 
-## Error 4: Build job does not depend on test job
-Line: build job  
-Problem: The build job has no `needs: test`.  
-Why it causes issue: Docker image may build even if tests fail.  
-Fix: Add `needs: test`.
+## Error 4: Build job does not wait for tests
+Broken: build job has no needs: test.
+Fix: add needs: test.
 
-## Error 5: Deploy job depends only on test, not build
-Line: deploy job  
-Problem: Deployment uses `needs: test` instead of `needs: build`.  
-Why it causes issue: Deployment can run without confirming that the Docker image was built successfully.  
-Fix: Use `needs: build`.
+## Error 5: Deploy depends on test only
+Broken: deploy uses needs: test.
+Fix: deploy should depend on build.
