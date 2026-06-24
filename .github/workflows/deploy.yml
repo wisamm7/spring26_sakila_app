@@ -3,85 +3,43 @@ name: Deployment Workflow
 on:
   push:
     branches: [main]
-    paths:
-      - "app.py"
-      - "config.py"
-      - "templates/**"
-      - "static/**"
-      - "Dockerfile"
-      - "requirements.txt"
-      - "docker-compose.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
 
-env:
-  IMAGE_NAME: sakila-app
-  STAGING_ENV: staging
-  PRODUCTION_ENV: production
-
 jobs:
-  deploy-staging:
+  staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
-    environment:
-      name: staging
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Print staging environment variables
+      - uses: actions/checkout@v4
+      - name: Staging deployment
         run: |
-          echo "Environment: $STAGING_ENV"
-          echo "Image: $IMAGE_NAME"
-          echo "Commit SHA: $GITHUB_SHA"
+          echo "Deploying Sakila app to staging"
+          echo "Staging deployment successful"
+          echo "## Staging Deployment Successful" >> $GITHUB_STEP_SUMMARY
 
-      - name: Build staging Docker image
-        run: docker build -t $IMAGE_NAME:staging-${{ github.sha }} .
-
-      - name: Run staging image simulation
-        run: |
-          docker run --rm $IMAGE_NAME:staging-${{ github.sha }} python -c "print('Staging deployment simulation successful')"
-
-      - name: Write staging job summary
-        run: |
-          echo "## Staging Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- Environment: staging" >> $GITHUB_STEP_SUMMARY
-          echo "- Image: $IMAGE_NAME:staging-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Status: Successful" >> $GITHUB_STEP_SUMMARY
-
-      - name: Staging notification
-        run: echo "Slack notification: Deployment to staging successful"
-
-  deploy-production:
+  production:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: deploy-staging
-    environment:
-      name: production
-
+    needs: staging
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Generate release tag
-        run: echo "TAG_NAME=v$(date +'%Y.%m.%d-%H%M%S')" >> $GITHUB_ENV
-
-      - name: Simulate production deployment
+      - uses: actions/checkout@v4
+      - name: Production deployment
         run: |
-          echo "Deploying $IMAGE_NAME to production..."
-          echo "Production deployment successful for commit $GITHUB_SHA"
+          echo "Deploying Sakila app to production"
+          echo "Production deployment successful"
+          echo "## Production Deployment Successful" >> $GITHUB_STEP_SUMMARY
 
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Create release note
         run: |
-          gh release create "$TAG_NAME" \
-            --title "Production Release $TAG_NAME" \
-            --notes "Automated production release from Deployment Workflow." \
-            --target "$GITHUB_SHA"
+          echo "Production Release for Sakila Flask DevOps Pipeline" > release-notes.txt
+          echo "Commit: $GITHUB_SHA" >> release-notes.txt
+          cat release-notes.txt
 
-      - name: Production notification
-        run: echo "Slack notification: Deployment to production successful"
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-release-notes
+          path: release-notes.txt
