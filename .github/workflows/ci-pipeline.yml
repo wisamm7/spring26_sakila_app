@@ -1,0 +1,173 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop, feature/ci-pipeline]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.9"
+  IMAGE_NAME: sakila-app
+  MYSQL_HOST: 127.0.0.1
+  MYSQL_USER: root
+  MYSQL_PASSWORD: admin
+  MYSQL_DB: sakila
+
+jobs:
+  lint:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install flake8
+        run: pip install flake8
+
+      - name: Run flake8
+        run: |
+          flake8 . \
+            --max-line-length=120 \
+            --ignore=E501,W503 \
+            --exclude=.git,__pycache__,sakila-db,venv,.venv
+
+  test:
+    name: Run Unit Tests with MySQL
+    runs-on: ubuntu-latest
+    needs: lint
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: admin
+          MYSQL_DATABASE: sakila
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -padmin"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-mysql-client wget unzip
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Download and import Sakila database
+        run: |
+          wget -O sakila-db.zip https://downloads.mysql.com/docs/sakila-db.zip
+          unzip -o sakila-db.zip -d sakila-db
+          mysql -h 127.0.0.1 -uroot -padmin < sakila-db/sakila-db/sakila-schema.sql
+          mysql -h 127.0.0.1 -uroot -padmin < sakila-db/sakila-db/sakila-data.sql
+          mysql -h 127.0.0.1 -uroot -padmin -e "SHOW DATABASES;"
+
+      - name: Run pytest
+        run: pytest tests/ -v
+        env:
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_USER: root
+          MYSQL_PASSWORD: admin
+          MYSQL_DB: sakila
+
+  build:
+    name: Docker Image Build and Verification
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: docker build -t $IMAGE_NAME:${{ github.sha }} .
+
+      - name: Verify Docker image
+        run: docker images | grep $IMAGE_NAME
+
+      - name: Smoke test container
+        run: |
+          docker network create ci-net
+
+          docker run -d --name ci-mysql --network ci-net \
+            -e MYSQL_ROOT_PASSWORD=admin \
+            -e MYSQL_DATABASE=sakila \
+            mysql:8.0
+
+          until docker exec ci-mysql mysqladmin ping -uroot -padmin --silent; do
+            sleep 3
+          done
+
+          wget -O sakila-db.zip https://downloads.mysql.com/docs/sakila-db.zip
+          unzip -o sakila-db.zip -d sakila-db
+          docker exec -i ci-mysql mysql -uroot -padmin < sakila-db/sakila-db/sakila-schema.sql
+          docker exec -i ci-mysql mysql -uroot -padmin < sakila-db/sakila-db/sakila-data.sql
+
+          docker run -d --name ci-sakila-app --network ci-net -p 5000:5000 \
+            -e MYSQL_HOST=ci-mysql \
+            -e MYSQL_USER=root \
+            -e MYSQL_PASSWORD=admin \
+            -e MYSQL_DB=sakila \
+            $IMAGE_NAME:${{ github.sha }}
+
+          sleep 10
+          curl -f http://localhost:5000 || curl -f http://localhost:5000/health
+
+  security-scan:
+    name: Trivy Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build image for scan
+        run: docker build -t $IMAGE_NAME:${{ github.sha }} .
+
+      - name: Run Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: table
+          output: trivy-results.txt
+          exit-code: 0
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH,MEDIUM
+
+      - name: Upload Trivy report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-security-report
+          path: trivy-results.txt
